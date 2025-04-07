@@ -1,0 +1,14 @@
+{
+  "timeZone": "Europe/Berlin",
+  "dependencies": {},
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.google.com/calendar/feeds"
+  ],
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "webapp": {
+    "executeAs": "USER_ACCESSING",
+    "access": "ANYONE"
+  }
+}
