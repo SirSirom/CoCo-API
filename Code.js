@@ -1,123 +1,95 @@
-const properties = PropertiesService.getUserProperties()
+const PROPERTIES = PropertiesService.getUserProperties()
+const CALENDARS = CalendarApp.getAllCalendars()
+let prevYear = new Date()
+let nextYear = new Date()
+prevYear.setDate(prevYear.getDate() - 360)
+nextYear.setDate(nextYear.getDate() + 360)
 
 function CoCo() {
-  let manuals = JSON.parse(JSON.stringify(getManual()).replaceAll('manualColor":','":'))
-  properties.setProperties(manuals)
-  Logger.log('[INIT] Loaded Current Manual Colors:')
-  Logger.log(manuals)
-  Logger.log('\n Full list now: \n')
-  Logger.log(properties.getProperties())
-  let prevYear = new Date()
-  let nextYear = new Date()
-  prevYear.setDate(prevYear.getDate() - 360)
-  nextYear.setDate(nextYear.getDate() + 360)
-  let calender = CalendarApp.getCalendarsByName('DHGE')[0]
-  let events = calender.getEvents(prevYear,nextYear)
-  for(let event of events){
-    // if(blacklist.includes(event.getTitle())){
-    //   event.deleteEvent()
-    //   Logger.log('[DEL][' + event.getStartTime() + ']\n' + event.getTitle() + '" -> blacklist')
-    //   continue
-    // }
-    // let color = properties.getProperty(event.getTitle())
-    // if(!color){
-    //   color = getRandomColor()
-    //   properties.setProperty(event.getTitle(),color)
-    //   Logger.log('[GEN][' + event.getStartTime() + ']\n' + event.getTitle() +  '" -> ' + color)
-    // }
-    // if(event.getColor() != color){
-    //   event.setColor(color)
-    //   Logger.log('[SET][' + event.getStartTime() + ']\n' + event.getTitle() +  '" -> ' + color)
-    //   continue
-    // }
-    // Logger.log('[SKIP][' + event.getId() + event.getStartTime() + ']\n' + event.getTitle() + '" -> ' + event.getColor() + ' = ' + color)
-    Logger.log(event.getId())
-  }
+  Logger.log(PROPERTIES.getProperties())
+  PROPERTIES.deleteAllProperties()
 }
 
-function getManual(){
-  let manuals = {}
-  for (const key in properties.getProperties()){
-    if(key.includes('manualColor')){
-      manuals[key]= properties.getProperty(key)
-    }
-  }
-  return manuals
-}
-function setManual(manual){
-  properties.setProperties(manual)
-}
+function doGet(e) {
+  const uri = e.pathInfo
+  const output = ContentService.createTextOutput()
+  output.setMimeType(ContentService.MimeType.JSON)
+  const params = e.parameter
+  let data
 
-function getBlacklist(){
-  let blacklisted = []
-  for (const key in properties.getProperties()){
-    if(key.includes('blacklist')){
-      blacklisted.push(key)
-    }
-  }
-  return blacklisted
-}
+  switch (true) {
+    case RegExp(`^Calendars$`).test(uri):
 
-const manualColor = {
-  'Spezielle Themen I  // Recht f. Ingen. // Nather':CalendarApp.EventColor.PALE_GREEN,
-  'Spezielle Themen I Spezielle Themen I  // Recht f. Ingen. // Nather':CalendarApp.EventColor.PALE_GREEN,
-  'Spezielle Themen I  // Dozent online // Nathe':CalendarApp.EventColor.PALE_GREEN,
-  'Spezielle Themen I  // Dozent online // Nather':CalendarApp.EventColor.PALE_GREEN,
-  'Spezielle Themen I Spezielle Themen I  // Dozent online // Nather':CalendarApp.EventColor.PALE_GREEN,
-  'Systementwicklung // Systementw. // Kasche':CalendarApp.EventColor.RED,
-  'Technische Informatik // AT-M-Vertiefung // Grimm': CalendarApp.EventColor.BLUE,
-  'Technische Informatik Informationstechnik und Maschinenorientierte Programmierung // Architektur (1) // Grimm':CalendarApp.EventColor.PALE_BLUE,
-  'Technische Informatik // ATMega // Grimm':CalendarApp.EventColor.CYAN,
-  'ABWL und spezielle Managementfelder // spez. Managem.f // Bauer':CalendarApp.EventColor.GREEN,
-  'ABWL und spezielle Managementfelder // spez.Managem.f. // Bauer':CalendarApp.EventColor.GREEN,
-  'Spezielle Themen I // mob.Applikation // Kasche':CalendarApp.EventColor.MAUVE, 
-  'Englisch // Englisch // Bonk':CalendarApp.EventColor.YELLOW,
-  'Datenbanken // Datenbanken II // Dorendorf':CalendarApp.EventColor.GRAY
-}
+      data = CALENDARS.map(calendar => ({
+        id : calendar.getId(),
+        name : calendar.getName(),
+        description : calendar.getDescription(),
+        color : calendar.getColor(),
+        timeZone : calendar.getTimeZone()
+      }))
 
-const blacklist = [
-  'Spezielle Themen I // digit.Prod.entw // Herbst',
-  'Spezielle Themen I // CloudComputing1 // Kasche',
-  'Spezielle Themen I // Kryptographie // Kusche',
-  'Spezielle Themen I // Simulationste // Feldmann',
-  'Spezielle Themen I // EmbeddesSystem1 // Günther',
-  'Spezielle Themen I // Simulationstech // Feldmann',
-  'Spezielle Themen I // EmbeddedSystem1 // Günther'
-]
-
-function getRandomColor(){
-  let eventColor = CalendarApp.EventColor
-  let colors = [
-    eventColor.BLUE,
-    eventColor.RED,
-    eventColor.CYAN,
-    eventColor.GRAY,
-    eventColor.GREEN,
-    eventColor.MAUVE,
-    eventColor.ORANGE,
-    eventColor.PALE_BLUE,
-    eventColor.PALE_GREEN,
-    eventColor.PALE_RED,
-    eventColor.RED,
-    eventColor.YELLOW
-  ]
-  let random = Math.floor(Math.random() * colors.length)
-
-  return colors [random]
-}
-
-function doGet(e){
-    let uri = e.pathInfo
-  switch (uri){
-    case 'events':
       break
+      
+    case RegExp(`^(${CALENDARS.map(calender => calender.getId()).join('|')})/Events$`).test(uri):
+
+      const calendarId = uri.substring(0,uri.indexOf('/'))
+      const calendar = CalendarApp.getCalendarById(calendarId);
+      const events = calendar.getEvents(dateVoidSetNow(params.startTime),dateVoidSetNow(params.endTime))
+
+      data = mapEvents(events)
+      break
+    
+    case RegExp(`^Events$`).test(uri):
+      data = []
+      for(const calendar of CALENDARS){
+        const calendarData = {}
+        calendarData[calendar.getId()] = mapEvents(calendar.getEvents(dateVoidSetNow(params.startTime),dateVoidSetNow(params.endTime)))
+        data.push(calendarData)
+      }
+
+      break
+
+    case RegExp(`^Properties$`).test(uri):
+      data = PROPERTIES.getProperties()
+      
+      break
+
     default:
-      let output = ContentService.createTextOutput()
-      output.setContent(JSON.stringify(properties.getProperties()))
+      
   }
+  output.setContent(JSON.stringify(data))
   return output
 }
 
-function doPost(e){
-  return ContentService.createTextOutput('recieved: '+e.postData.contents)
+function doPost(e) {
+  const uri = e.pathInfo
+  const data = JSON.parse(e.postData.contents)
+  switch (true) {
+    case RegExp(`^Properties$`).test(uri):
+      PROPERTIES.setProperties(data)
+      break
+  default:
+  }
+  return ContentService.createTextOutput('recieved: ' + e.postData.contents)
+}
+
+function mapEvents(events){
+ let data = events.map(event => ({
+        id: event.getId(),
+        title: event.getTitle(),
+        description: event.getDescription(),
+        color: event.getColor(),
+        eventType: event.getEventType(),
+        creators: event.getCreators(),
+        location: event.getLocation(),
+        transparency: event.getTransparency(),
+        startTime: event.getStartTime(),
+        endTime: event.getEndTime(),
+        tags:event.getAllTagKeys()
+      }))
+  return data
+}
+
+function dateVoidSetNow(date){
+  return date? new Date(date): new Date()
 }
