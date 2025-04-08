@@ -6,14 +6,26 @@ prevYear.setDate(prevYear.getDate() - 360)
 nextYear.setDate(nextYear.getDate() + 360)
 
 function CoCo() {
+  const registeredCalendars = ScriptApp.getProjectTriggers().map(trigger => trigger.getTriggerSourceId())
+  const calendars = CalendarApp.getAllOwnedCalendars().filter(calendar => registeredCalendars.includes(calendar.getId()))
   
-}
-
-function install(){
-  ScriptApp.newTrigger('CoCo').forUserCalendar(Session.getActiveUser().getEmail()).onEventUpdated().create() 
-}
-function uninstall(){
-  ScriptApp.deleteTrigger(ScriptApp.getProjectTriggers()[0])
+  const keys = PROPERTIES.getKeys()
+  for(const key of keys){
+    const value = JSON.parse(PROPERTIES.getProperty(key.toString()))
+    for(const calendar of calendars){
+      const events = calendar.getEvents(prevYear,nextYear,{search: key})
+      for(const event of events){
+        if(value.hidden){
+          event.deleteEvent()
+          continue
+        }
+        if(event.getColor() != value.color){
+          event.setColor(value.color)
+          continue
+        }
+      }
+    }
+  }
 }
 
 function doGet(e) {
@@ -31,7 +43,8 @@ function doGet(e) {
         name : calendar.getName(),
         description : calendar.getDescription(),
         color : calendar.getColor(),
-        timeZone : calendar.getTimeZone()
+        timeZone : calendar.getTimeZone(),
+        registered: (ScriptApp.getProjectTriggers().filter(trigger => trigger.getTriggerSourceId() == calendar.getId()).length > 0)
       }))
 
       break
@@ -40,7 +53,6 @@ function doGet(e) {
 
       const calendarId = uri.substring(0,uri.indexOf('/'))
       const calendar = CalendarApp.getCalendarById(calendarId);
-      calendar.getEvents()
       const events = calendar.getEvents(dateVoidSetNow(params.startTime),dateVoidSetNow(params.endTime))
 
       data = mapEvents(events)
@@ -70,26 +82,34 @@ function doGet(e) {
 
 function doPost(e) {
   const uri = e.pathInfo
-  const data = JSON.parse((e.postData.contents? e.postData.contents: {}))
+  const data = JSON.parse(e.postData.contents)
+  const params = e.parameter
+  let calendarId
   switch (true) {
     case RegExp(`^Properties$`).test(uri):
+      for(const key in data){
+        data[key] = JSON.stringify(data[key])
+      }
+      PROPERTIES.deleteAllProperties()
       PROPERTIES.setProperties(data)
       break
-    case RegExp(`^Install$`).test(uri):
-      if(ScriptApp.getProjectTriggers().length > 0){
+    case RegExp(`^(${CALENDARS.map(calender => calender.getId()).join('|')})/Enable$`).test(uri):
+      calendarId = uri.substring(0,uri.indexOf('/'))
+      if(ScriptApp.getProjectTriggers().filter(trigger => calendarId == trigger.getTriggerSourceId()).length > 0){
         break
       }
-      install()
+      ScriptApp.newTrigger('CoCo').forUserCalendar(calendarId).onEventUpdated().create() 
       break
-    case RegExp(`^Uninstall$`).test(uri):
-      if(ScriptApp.getProjectTriggers().length == 0){
+    case RegExp(`^(${CALENDARS.map(calender => calender.getId()).join('|')})/Disable$`).test(uri):
+      calendarId = uri.substring(0,uri.indexOf('/'))
+      if(ScriptApp.getProjectTriggers().filter(trigger => calendarId == trigger.getTriggerSourceId()).length == 0){
         break
       }
-      uninstall()
+      ScriptApp.deleteTrigger(ScriptApp.getProjectTriggers().filter(trigger => calendarId == trigger.getTriggerSourceId())[0])
       break
   default:
   }
-  return ContentService.createTextOutput('recieved: ' + e.postData.contents)
+  return ContentService.createTextOutput('recieved: ' + JSON.parse(e.postData.contents))
 }
 
 function mapEvents(events){
