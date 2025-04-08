@@ -1,13 +1,7 @@
 {
   "timeZone": "Europe/Berlin",
   "dependencies": {
-    "enabledAdvancedServices": [
-      {
-        "userSymbol": "Calendar",
-        "version": "v3",
-        "serviceId": "calendar"
-      }
-    ]
+    "enabledAdvancedServices": []
   },
   "oauthScopes": [
     "https://www.googleapis.com/auth/calendar",
