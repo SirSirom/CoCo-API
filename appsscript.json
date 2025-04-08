@@ -1,9 +1,19 @@
 {
   "timeZone": "Europe/Berlin",
-  "dependencies": {},
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Calendar",
+        "version": "v3",
+        "serviceId": "calendar"
+      }
+    ]
+  },
   "oauthScopes": [
     "https://www.googleapis.com/auth/calendar",
-    "https://www.google.com/calendar/feeds"
+    "https://www.google.com/calendar/feeds",
+    "https://www.googleapis.com/auth/script.scriptapp",
+    "https://www.googleapis.com/auth/userinfo.email"
   ],
   "exceptionLogging": "STACKDRIVER",
   "runtimeVersion": "V8",

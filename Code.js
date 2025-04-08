@@ -6,8 +6,14 @@ prevYear.setDate(prevYear.getDate() - 360)
 nextYear.setDate(nextYear.getDate() + 360)
 
 function CoCo() {
-  Logger.log(PROPERTIES.getProperties())
-  PROPERTIES.deleteAllProperties()
+  
+}
+
+function install(){
+  ScriptApp.newTrigger('CoCo').forUserCalendar(Session.getActiveUser().getEmail()).onEventUpdated().create() 
+}
+function uninstall(){
+  ScriptApp.deleteTrigger(ScriptApp.getProjectTriggers()[0])
 }
 
 function doGet(e) {
@@ -34,6 +40,7 @@ function doGet(e) {
 
       const calendarId = uri.substring(0,uri.indexOf('/'))
       const calendar = CalendarApp.getCalendarById(calendarId);
+      calendar.getEvents()
       const events = calendar.getEvents(dateVoidSetNow(params.startTime),dateVoidSetNow(params.endTime))
 
       data = mapEvents(events)
@@ -51,7 +58,7 @@ function doGet(e) {
 
     case RegExp(`^Properties$`).test(uri):
       data = PROPERTIES.getProperties()
-      
+
       break
 
     default:
@@ -63,10 +70,22 @@ function doGet(e) {
 
 function doPost(e) {
   const uri = e.pathInfo
-  const data = JSON.parse(e.postData.contents)
+  const data = JSON.parse((e.postData.contents? e.postData.contents: {}))
   switch (true) {
     case RegExp(`^Properties$`).test(uri):
       PROPERTIES.setProperties(data)
+      break
+    case RegExp(`^Install$`).test(uri):
+      if(ScriptApp.getProjectTriggers().length > 0){
+        break
+      }
+      install()
+      break
+    case RegExp(`^Uninstall$`).test(uri):
+      if(ScriptApp.getProjectTriggers().length == 0){
+        break
+      }
+      uninstall()
       break
   default:
   }
