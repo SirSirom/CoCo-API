@@ -5,14 +5,16 @@ let nextYear = new Date()
 prevYear.setDate(prevYear.getDate() - 360)
 nextYear.setDate(nextYear.getDate() + 360)
 
-function CoCo() {
-  const registeredCalendars = ScriptApp.getProjectTriggers().map(trigger => trigger.getTriggerSourceId())
-  const calendars = CalendarApp.getAllOwnedCalendars().filter(calendar => registeredCalendars.includes(calendar.getId()))
-  
+function CoCo(e) {
+  const calendars = CalendarApp.getCalendarById(e.calendarId) 
+  setCalendarColors([calendars])
+}
+
+function setCalendarColors(calendars){
   const keys = PROPERTIES.getKeys()
-  for(const key of keys){
-    const value = JSON.parse(PROPERTIES.getProperty(key.toString()))
-    for(const calendar of calendars){
+  for(const calendar of calendars){  
+    for(const key of keys){
+      const value = JSON.parse(PROPERTIES.getProperty(key.toString()))
       const events = calendar.getEvents(prevYear,nextYear,{search: key})
       for(const event of events){
         if(value.hidden){
@@ -27,7 +29,6 @@ function CoCo() {
     }
   }
 }
-
 function doGet(e) {
   const uri = e.pathInfo
   const output = ContentService.createTextOutput()
@@ -85,6 +86,8 @@ function doPost(e) {
   const data = JSON.parse(e.postData.contents)
   const params = e.parameter
   let calendarId
+  const registeredCalendars = ScriptApp.getProjectTriggers().map(trigger => trigger.getTriggerSourceId())
+  let calendars
   switch (true) {
     case RegExp(`^Properties$`).test(uri):
       for(const key in data){
@@ -92,13 +95,17 @@ function doPost(e) {
       }
       PROPERTIES.deleteAllProperties()
       PROPERTIES.setProperties(data)
+      calendars = CalendarApp.getAllOwnedCalendars().filter(calendar => registeredCalendars.includes(calendar.getId())) 
+      setCalendarColors(calendars)
       break
     case RegExp(`^(${CALENDARS.map(calender => calender.getId()).join('|')})/Enable$`).test(uri):
       calendarId = uri.substring(0,uri.indexOf('/'))
       if(ScriptApp.getProjectTriggers().filter(trigger => calendarId == trigger.getTriggerSourceId()).length > 0){
         break
       }
-      ScriptApp.newTrigger('CoCo').forUserCalendar(calendarId).onEventUpdated().create() 
+      ScriptApp.newTrigger('CoCo').forUserCalendar(calendarId).onEventUpdated().create()
+      calendars = CalendarApp.getAllOwnedCalendars().filter(calendar => registeredCalendars.includes(calendar.getId())) 
+      setCalendarColors([calendarsId])
       break
     case RegExp(`^(${CALENDARS.map(calender => calender.getId()).join('|')})/Disable$`).test(uri):
       calendarId = uri.substring(0,uri.indexOf('/'))
