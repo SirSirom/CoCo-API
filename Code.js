@@ -1,16 +1,35 @@
 const PROPERTIES = PropertiesService.getUserProperties()
-const CALENDARS = CalendarApp.getAllCalendars()
+const CALENDARS = CalendarApp.getAllOwnedCalendars()
+const CACHE = CacheService.getUserCache()
 let prevYear = new Date()
 let nextYear = new Date()
 prevYear.setDate(prevYear.getDate() - 360)
 nextYear.setDate(nextYear.getDate() + 360)
 
 function CoCo(e) {
-  const calendars = CalendarApp.getCalendarById(e.calendarId) 
-  setCalendarColors([calendars])
+  if(CACHE.get('running')){
+    return
+  }
+  CACHE.put('running',true,20)
+  try{
+   const calendars = CalendarApp.getCalendarById(e.calendarId)
+    setCalendarColors([calendars])
+  }catch{
+    
+  }
+  CACHE.remove('running')
+}
+
+function clearProperties(){
+  PROPERTIES.deleteAllProperties()
 }
 
 function setCalendarColors(calendars){
+  if(CACHE.get('running')){
+    return
+  }
+  CACHE.put('running',true,20)
+
   const keys = PROPERTIES.getKeys()
   for(const calendar of calendars){  
     for(const key of keys){
@@ -22,12 +41,22 @@ function setCalendarColors(calendars){
           continue
         }
         if(event.getColor() != value.color){
-          event.setColor(value.color)
+          if(event.getColor() == "" && value.color == 0) {
+            continue
+          }
+          try {
+            event.setColor(value.color)
+          } catch {
+            Utilities.sleep(1000); //Rate-Limiter
+            event.setColor(value.color)
+          }
           continue
         }
       }
     }
   }
+
+  CACHE.remove('running')
 }
 function doGet(e) {
   const uri = e.pathInfo
@@ -71,12 +100,16 @@ function doGet(e) {
 
     case RegExp(`^Properties$`).test(uri):
       data = PROPERTIES.getProperties()
+        for(const key in data){
+          data[key] = JSON.parse(data[key])
+        } 
 
       break
 
     default:
       
   }
+
   output.setContent(JSON.stringify(data))
   return output
 }
@@ -105,7 +138,7 @@ function doPost(e) {
       }
       ScriptApp.newTrigger('CoCo').forUserCalendar(calendarId).onEventUpdated().create()
       calendars = CalendarApp.getAllOwnedCalendars().filter(calendar => registeredCalendars.includes(calendar.getId())) 
-      setCalendarColors([calendarsId])
+      setCalendarColors(calendars)
       break
     case RegExp(`^(${CALENDARS.map(calender => calender.getId()).join('|')})/Disable$`).test(uri):
       calendarId = uri.substring(0,uri.indexOf('/'))
