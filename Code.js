@@ -6,6 +6,9 @@ let nextYear = new Date()
 prevYear.setDate(prevYear.getDate() - 360)
 nextYear.setDate(nextYear.getDate() + 360)
 
+function test(){
+}
+
 function CoCo(e) {
   if(CACHE.get('running')){
     return
@@ -29,17 +32,30 @@ function setCalendarColors(calendars){
   }
   CACHE.put('running',true,20)
   //get all properties
-  const keys = PROPERTIES.getKeys()
-  for(const calendar of calendars){  
-    //for all calenders apply every key
-    for(const key of keys){
-      //parse value
-      const value = JSON.parse(PROPERTIES.getProperty(key.toString()))
+  const keys = Object.keys(getProperties())
+  const settings = JSON.parse(PROPERTIES.getProperty('settings'))
+  let hiddenEventsCalendar = CalendarApp.getOwnedCalendarById(settings?.hiddenEventsCalendarId)
+  //parse value
+  for(const key of keys){ 
+    const value = getProperties()[key.toString()]
+    if(!value.hidden &&  hiddenEventsCalendar){
+      const hiddenEvents = hiddenEventsCalendar.getEvents(prevYear,nextYear,{search: key})
+      for(const event of hiddenEvents){
+        moveEventToCalendar(hiddenEventsCalendar,event,CalendarApp.getCalendarById(event.getTag('origin')))
+      }
+    }
+
+    for(const calendar of calendars){
       //get all events
       const events = calendar.getEvents(prevYear,nextYear,{search: key})
       for(const event of events){
         if(value.hidden){
-          event.deleteEvent()
+          if(!hiddenEventsCalendar){
+            hiddenEventsCalendar = CalendarApp.createCalendar('CoCo - Hidden Events',{hidden: true, selected:false})
+            PROPERTIES.setProperty('settings',JSON.stringify({hiddenEventsCalendarId: hiddenEventsCalendar.getId()}))
+          }
+          event.setTag('origin',calendar.getId())
+          moveEventToCalendar(calendar,event,hiddenEventsCalendar)
           continue
         }
         // if color is already same skip setting process
@@ -62,6 +78,34 @@ function setCalendarColors(calendars){
 
   CACHE.remove('running')
 }
+
+function getProperties(){
+  data = JSON.parse(PROPERTIES.getProperty('properties'))
+  for(const key in data){
+    data[key] = JSON.parse(data[key])
+  } 
+  return data
+}
+
+function moveEventToCalendar(originCalendar,event,targetCalendar){
+  let eventId
+  if(event.getId().includes('@google.com')){
+    eventId = event.getId().replace('@google.com','')
+  }else{
+    eventId = Calendar.Events.list(originCalendar.getId(),{iCalUID:event.getId()}).items[0].id
+  }
+  return Calendar.Events.move(originCalendar.getId(),eventId ,targetCalendar.getId())
+}
+
+function setProperties(data){
+  for(const key in data){
+        //Properties only accept Map<String,String> so we convert json to string
+        data[key] = JSON.stringify(data[key])
+  }
+  //reset properties
+  PROPERTIES.setProperty('properties',JSON.stringify(data))
+}
+
 function doGet(e) {
   const uri = e.pathInfo
   const output = ContentService.createTextOutput()
@@ -71,7 +115,7 @@ function doGet(e) {
 
   switch (true) {
     //Enpoint/Calendar
-    case RegExp(`^Calendars$`).test(uri):
+    case RegExp(`^\/?Calendars$`).test(uri):
       //map values to json
       data = CALENDARS.map(calendar => ({
         id : calendar.getId(),
@@ -85,7 +129,7 @@ function doGet(e) {
       break
 
     //Endpoint/calendarId/Events
-    case RegExp(`^(${CALENDARS.map(calender => calender.getId()).join('|')})/Events$`).test(uri):
+    case RegExp(`^\/?(${CALENDARS.map(calender => calender.getId()).join('|')})/Events$`).test(uri):
       //map events
       const calendarId = uri.substring(0,uri.indexOf('/'))
       const calendar = CalendarApp.getCalendarById(calendarId);
@@ -95,7 +139,7 @@ function doGet(e) {
       break
     
     //Endpoint/Events
-    case RegExp(`^Events$`).test(uri):
+    case RegExp(`^\/?Events$`).test(uri):
       data = []
       //build json
       for(const calendar of CALENDARS){
@@ -107,16 +151,12 @@ function doGet(e) {
       break
 
     //Endpoint/Properties
-    case RegExp(`^Properties$`).test(uri):
-      data = PROPERTIES.getProperties()
-        for(const key in data){
-          data[key] = JSON.parse(data[key])
-        } 
-
+    case RegExp(`^\/?Properties$`).test(uri):
+      data = getProperties()
       break
 
     default:
-      
+      Logger.log(e.pathInfo);
   }
 
   output.setContent(JSON.stringify(data))
@@ -133,21 +173,15 @@ function doPost(e) {
   switch (true) {
 
     //Enpoint/Properties
-    case RegExp(`^Properties$`).test(uri):
-      for(const key in data){
-        //Properties only accept Map<String,String> so we convert json to string
-        data[key] = JSON.stringify(data[key])
-      }
-      //reset properties
-      PROPERTIES.deleteAllProperties()
-      PROPERTIES.setProperties(data)
+    case RegExp(`^\/?Properties$`).test(uri):
+      setProperties(data);
       calendars = CalendarApp.getAllOwnedCalendars().filter(calendar => registeredCalendars.includes(calendar.getId())) 
       //set colors after propertychange
       setCalendarColors(calendars)
       break
     
     //Enpoint/calendarId/Enable
-    case RegExp(`^(${CALENDARS.map(calender => calender.getId()).join('|')})/Enable$`).test(uri):
+    case RegExp(`^\/?(${CALENDARS.map(calender => calender.getId()).join('|')})/Enable$`).test(uri):
       calendarId = uri.substring(0,uri.indexOf('/'))
       //if a trigger already exists do nothing
       if(ScriptApp.getProjectTriggers().filter(trigger => calendarId == trigger.getTriggerSourceId()).length > 0){
@@ -159,7 +193,7 @@ function doPost(e) {
       //set colors after trigger creation
       setCalendarColors(calendars)
       break
-    case RegExp(`^(${CALENDARS.map(calender => calender.getId()).join('|')})/Disable$`).test(uri):
+    case RegExp(`^\/?(${CALENDARS.map(calender => calender.getId()).join('|')})/Disable$`).test(uri):
       calendarId = uri.substring(0,uri.indexOf('/'))
       //if no trigger exists do nothing
       if(ScriptApp.getProjectTriggers().filter(trigger => calendarId == trigger.getTriggerSourceId()).length == 0){
